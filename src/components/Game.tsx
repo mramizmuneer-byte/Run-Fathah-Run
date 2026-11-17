@@ -48,6 +48,7 @@ export default function Game() {
   const [homeAlign, setHomeAlign] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const homeVideoRef = useRef<HTMLVideoElement | null>(null);
+  const idleVideoRef = useRef<HTMLVideoElement | null>(null);
   const openingActive = useRef(true);
   const introRef = useRef({ startedAt: 0, ending: false, started: false, timers: [] as number[] });
 
@@ -135,6 +136,19 @@ export default function Game() {
   }, [s.phase]);
 
   useEffect(() => {
+    const v = idleVideoRef.current;
+    if (!v) return;
+    const update = () => {
+      const on = !document.hidden && ["home", "intro"].includes(s.phase) && !openingActive.current && !matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (on) v.play().catch(() => {});
+      else v.pause();
+    };
+    update();
+    document.addEventListener("visibilitychange", update);
+    return () => document.removeEventListener("visibilitychange", update);
+  }, [s.phase, homeVisible]);
+
+  useEffect(() => {
     let alive = true;
     preloadAll((p) => alive && setLoaded(p)).finally(() => alive && setReady(true));
     return () => {
@@ -155,6 +169,7 @@ export default function Game() {
       eng.mount();
       engineRef.current = eng;
       eng.setHomeVideo(homeVideoRef.current);
+      eng.setIdleVideo(idleVideoRef.current);
       if (introRef.current.ending) eng.revealHome(true);
     } catch (e) {
       console.error(e);
@@ -251,6 +266,10 @@ export default function Game() {
         <video ref={homeVideoRef} className="home-loop-source" aria-hidden="true" loop muted playsInline preload="auto" poster={homePoster.url} crossOrigin="anonymous">
           <source src={homeMp4.url} type="video/mp4" />
           <source src={homeWebm.url} type="video/webm" />
+        </video>
+        <video ref={idleVideoRef} className="home-loop-source" aria-hidden="true" loop muted playsInline preload="auto" poster="/home/home_idle_poster.png">
+          <source src="/home/home_idle_loop.mp4" type="video/mp4" />
+          <source src="/home/home_idle_loop.webm" type="video/webm" />
         </video>
         {homeAlign && vid === "off" && s.phase === "home" && <img src={homeAlignment.url} alt="" className="home-alignment" />}
 

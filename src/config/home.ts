@@ -9,6 +9,7 @@ export const HOME = {
   shadowColor: "rgba(20,16,12,0.5)",
   openingFadeMs: 350,
   spriteFadeMs: 300,
+  idleFadeMs: 250,
   skipGuardMs: 300,
   breathingDelayMs: 500,
 } as const;

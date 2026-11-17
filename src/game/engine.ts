@@ -69,6 +69,11 @@ import xuvWhite from "@/assets/xuv_white.png";
 import { drawCorridorWorld, drawDeadEndWorld, drawRoadWorld } from "./world";
 
 const TURN_FRAMES = 32;
+/** turn sheet layout: 32 frames in an 8-column grid (each side stays under 4096px for phone GPUs) */
+const TURN_COLS = 8;
+/** standing frame 0 of the sheet: figure height and feet baseline as fractions of the frame height */
+const TURN_FIG0 = 0.9477;
+const TURN_FEET0 = 0.9752;
 const TURN_LEN = 1.3;
 const INTRO_LEN = TURN_LEN + 0.5;
 /** crossfade window: home scene fades out over the game scene */
@@ -440,13 +445,23 @@ export class Engine {
   private turnSheet: Sprite = loadSprite(turnSheetAsset);
   private homePoster: Sprite = loadSprite(homePoster.url);
   private homeVideo: HTMLVideoElement | null = null;
+  private idleVideo: HTMLVideoElement | null = null;
   private homeSpriteOpacity = 0;
   private homeRevealedAt = Infinity;
 
   setHomeVideo(video: HTMLVideoElement | null) { this.homeVideo = video; }
+  /** Fathah breathing / jumping-jack loop (he is part of the picture) */
+  setIdleVideo(video: HTMLVideoElement | null) { this.idleVideo = video; }
   revealHome(immediate = false) {
     this.homeRevealedAt = performance.now();
     this.homeSpriteOpacity = immediate ? 1 : 0;
+    // the idle loop always starts from its first frame, which matches the last frame of the opening
+    const v = this.idleVideo;
+    if (v) {
+      try { v.currentTime = 0; } catch { /* not seekable yet */ }
+      const still = typeof matchMedia === "function" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (!still) v.play().catch(() => {});
+    }
   }
   countT = 0;
   dyingT = 0;
@@ -2842,6 +2857,19 @@ export class Engine {
     ctx.scale(push, push);
     ctx.translate(-CX, -VH * 0.55);
 
+    const elapsed = performance.now() - this.homeRevealedAt;
+    this.homeSpriteOpacity = Math.max(this.homeSpriteOpacity, clamp01(elapsed / HOME.spriteFadeMs));
+
+    // At rest the home screen IS the idle video: Fathah is already in the picture.
+    const idle = this.idleVideo;
+    const idleReady = !!(idle && idle.readyState >= 2 && idle.videoWidth);
+    if (intro === 0 && idleReady && idle) {
+      const r = coverRect(idle.videoWidth, idle.videoHeight, VW, VH);
+      ctx.drawImage(idle, r.x, r.y, r.width, r.height);
+      ctx.restore();
+      return;
+    }
+
     const video = this.homeVideo;
     const poster = this.homePoster.img;
     const source = video && video.readyState >= 2 && video.videoWidth ? video : poster;
@@ -2853,8 +2881,6 @@ export class Engine {
         ctx.drawImage(source, rect.x, rect.y, rect.width, rect.height);
       }
     }
-    const elapsed = performance.now() - this.homeRevealedAt;
-    this.homeSpriteOpacity = Math.max(this.homeSpriteOpacity, clamp01(elapsed / HOME.spriteFadeMs));
     ctx.save();
     ctx.globalAlpha = this.homeSpriteOpacity;
 
@@ -2896,14 +2922,18 @@ export class Engine {
     } else if (ts.ready && ts.img) {
       // real video frames: front -> side -> back turn
       const n = TURN_FRAMES;
-      const fw = ts.img.width / n;
+      const rows = Math.ceil(n / TURN_COLS);
+      const fw = ts.img.width / TURN_COLS;
+      const fh = ts.img.height / rows;
       const u = intro > 0 ? smooth(Math.min(1, intro / TURN_LEN)) : 0;
       const fi = Math.min(n - 1, Math.floor(u * n));
-      const dh = H * 1.02;
-      const dw = (dh * fw) / ts.img.height;
-      const sway = 0;
+      // frame 0 matches the standing pose exactly (same height, feet on feetY);
+      // by the end of the turn the frame matches the game's runner, as before
+      const dh = (homeH / TURN_FIG0) * (1 - m) + gameH * m;
+      const dw = (dh * fw) / fh;
+      const anchor = TURN_FEET0 + (1 - TURN_FEET0) * m;
       ctx.save();
-      ctx.drawImage(ts.img, fi * fw, 0, fw, ts.img.height, fx - dw / 2 + sway, feetY - dh, dw, dh);
+      ctx.drawImage(ts.img, (fi % TURN_COLS) * fw, Math.floor(fi / TURN_COLS) * fh, fw, fh, fx - dw / 2, feetY - dh * anchor, dw, dh);
       ctx.restore();
     } else if (rig) {
       ctx.save();
@@ -2911,6 +2941,18 @@ export class Engine {
       ctx.restore();
     }
     ctx.restore();
+
+    // the idle picture (with Fathah in it) dissolves out while the turn begins
+    if (intro > 0 && idleReady && idle) {
+      const a = 1 - clamp01(intro / (HOME.idleFadeMs / 1000));
+      if (a > 0) {
+        const r = coverRect(idle.videoWidth, idle.videoHeight, VW, VH);
+        ctx.save();
+        ctx.globalAlpha = a;
+        ctx.drawImage(idle, r.x, r.y, r.width, r.height);
+        ctx.restore();
+      }
+    }
 
     ctx.restore();
   }
