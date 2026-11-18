@@ -6,7 +6,6 @@ import { preloadAll } from "@/game/preload";
 import { CREDIT, FAREWELL, TAGLINE, TITLE, UI, WISHES, WISH_ROTATE_MS } from "@/config/game";
 import { GAME_OVER_SECOND_LINE } from "@/config/bosses";
 import { HOME, canSkipOpening } from "@/config/home";
-import introMp4 from "@/assets/intro/intro_full_v2.mp4.asset.json";
 import introPoster from "@/assets/intro/intro_poster.jpg.asset.json";
 import homeMp4 from "@/assets/home/home_loop.mp4.asset.json";
 import homeWebm from "@/assets/home/home_loop.webm.asset.json";
@@ -363,7 +362,7 @@ export default function Game() {
             onEnded={() => endIntro(false)}
             onError={() => endIntro(true, true)}
           >
-            <source src={introMp4.url} type="video/mp4" />
+            <source src="/intro/intro_full_v3.mp4" type="video/mp4" />
           </video>
           <div className={`pointer-events-none absolute inset-x-0 bottom-8 text-center text-xs font-semibold tracking-wide text-white/70 transition-opacity duration-500 ${skipHint ? "opacity-100" : "opacity-0"}`}>
             Tap to skip
